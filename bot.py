@@ -4,7 +4,6 @@ from telebot import TeleBot, types
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from pydub import AudioSegment
-import requests
 
 # 🔹 توکن ربات
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -33,14 +32,12 @@ def convert_to_mp3(input_path):
     audio.export(output_path, format="mp3")
     return output_path
 
-# 🔹 دانلود فایل از گوگل درایو
+# 🔹 دانلود فایل از گوگل درایو و تبدیل به MP3
 def download_file(file_id, file_name):
     request = drive_service.files().get_media(fileId=file_id)
     local_path = f"/tmp/{file_name}"
     with open(local_path, "wb") as f:
-        downloader = request
-        f.write(downloader.execute())
-    # تبدیل به mp3
+        f.write(request.execute())
     return convert_to_mp3(local_path)
 
 # 🔹 دستور /start
@@ -61,11 +58,15 @@ def start_message(message):
 # 🔹 پاسخ به دکمه‌ها
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
+    bot.answer_callback_query(call.id)  # پاسخ به callback تا timeout نشه
     file_id = call.data
     file_info = drive_service.files().get(fileId=file_id, fields="name").execute()
     file_name = file_info['name']
 
+    # 🔹 دانلود و تبدیل فایل
     mp3_path = download_file(file_id, file_name)
+
+    # 🔹 ارسال فایل MP3
     with open(mp3_path, "rb") as audio:
         bot.send_audio(call.message.chat.id, audio, title=file_name)
 
