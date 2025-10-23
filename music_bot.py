@@ -1,72 +1,50 @@
-import telebot
-from telebot import types
-import json
 import os
+import json
+from telebot import TeleBot, types
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
 
-# 🟢 جای توکن خودت رو اینجا بگذار داخل کوتیشن‌ها:
-TOKEN = "5564295105:AAExehUW8xw3SMc_vriJ6NWLLbn6qKSOSvI"
+# 🔹 توکن ربات
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+bot = TeleBot(TOKEN)
 
-bot = telebot.TeleBot(TOKEN)
-SONGS_FILE = "songs.json"
+# 🔹 دسترسی به گوگل درایو
+SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_DRIVE_JSON")
+credentials = service_account.Credentials.from_service_account_info(
+    json.loads(SERVICE_ACCOUNT_JSON),
+    scopes=['https://www.googleapis.com/auth/drive.readonly']
+)
+drive_service = build('drive', 'v3', credentials=credentials)
 
-# --- ایجاد فایل در صورت نبود ---
-if not os.path.exists(SONGS_FILE):
-    with open(SONGS_FILE, "w", encoding="utf-8") as f:
-        json.dump({}, f)
+# 🔹 تابع گرفتن فایل‌های MP3
+def get_mp3_files():
+    results = drive_service.files().list(
+        q="mimeType='audio/mpeg'",
+        spaces='drive'
+    ).execute()
+    return results.get('files', [])
 
-# --- خواندن فایل آهنگ‌ها ---
-def load_songs():
-    with open(SONGS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-# --- ذخیره فایل آهنگ‌ها ---
-def save_songs(songs):
-    with open(SONGS_FILE, "w", encoding="utf-8") as f:
-        json.dump(songs, f, ensure_ascii=False, indent=2)
-
-# --- دستور start ---
+# 🔹 دستور /start
 @bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "🎵 سلام! آهنگ بفرست تا ذخیره بشه یا نامش رو جستجو کن.")
+def start_message(message):
+    files = get_mp3_files()
+    if not files:
+        bot.send_message(message.chat.id, "هیچ فایل موزیکی پیدا نشد! لطفاً فایل اضافه کنید.")
+        return
 
-# --- دریافت آهنگ و ذخیره‌سازی ---
-@bot.message_handler(content_types=['audio'])
-def save_audio(message):
-    songs = load_songs()
-    song_id = message.audio.file_id
-    title = message.audio.title or "بدون نام"
-    songs[title] = song_id
-    save_songs(songs)
-    bot.reply_to(message, f"✅ آهنگ '{title}' ذخیره شد!")
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    for f in files:
+        btn = types.InlineKeyboardButton(f['name'], callback_data=f['id'])
+        markup.add(btn)
 
-# --- حالت Inline ---
-@bot.inline_handler(lambda query: len(query.query) > 0)
-def inline_search(query):
-    songs = load_songs()
-    text = query.query.lower()
-    results = []
-    for title, file_id in songs.items():
-        if text in title.lower():
-            results.append(
-                types.InlineQueryResultCachedAudio(
-                    id=title,
-                    audio_file_id=file_id,
-                    title=title
-                )
-            )
-    bot.answer_inline_query(query.id, results, cache_time=1)
+    bot.send_message(message.chat.id, "لیست آهنگ‌ها:", reply_markup=markup)
 
-# --- جستجو و ارسال آهنگ با تایپ مستقیم ---
-@bot.message_handler(func=lambda message: True)
-def send_song(message):
-    songs = load_songs()
-    text = message.text.lower()
-    for title, file_id in songs.items():
-        if text in title.lower():
-            bot.send_audio(message.chat.id, file_id, caption=f"🎶 {title}")
-            return
-    bot.reply_to(message, "❌ آهنگی با این نام پیدا نشد.")
+# 🔹 پاسخ به دکمه‌ها
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    file_id = call.data
+    file = drive_service.files().get(fileId=file_id, fields="name, webContentLink").execute()
+    bot.send_message(call.message.chat.id, f"دانلود فایل: {file['name']}\n{file['webContentLink']}")
 
-# --- اجرای ربات ---
-print("✅ Bot is running...")
-bot.infinity_polling(timeout=60, long_polling_timeout=60)
+# 🔹 اجرای ربات
+bot.infinity_polling()
