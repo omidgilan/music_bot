@@ -5,7 +5,6 @@ from telebot import TeleBot, types
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from googleapiclient.http import MediaIoBaseDownload
-from pydub import AudioSegment
 
 # 🔹 توکن ربات
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -27,8 +26,8 @@ def get_mp3_files():
     ).execute()
     return results.get('files', [])
 
-# 🔹 دانلود فایل در حافظه و تبدیل به MP3 در حافظه
-def download_file_in_memory(file_id):
+# 🔹 دانلود فایل از گوگل درایو در حافظه
+def download_mp3(file_id):
     request = drive_service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
@@ -36,13 +35,7 @@ def download_file_in_memory(file_id):
     while not done:
         status, done = downloader.next_chunk()
     fh.seek(0)
-
-    # تبدیل با pydub به mp3
-    audio = AudioSegment.from_file(fh)
-    mp3_io = io.BytesIO()
-    audio.export(mp3_io, format="mp3")
-    mp3_io.seek(0)
-    return mp3_io
+    return fh
 
 # 🔹 دستور /start
 @bot.message_handler(commands=['start'])
@@ -62,14 +55,16 @@ def start_message(message):
 # 🔹 پاسخ به دکمه‌ها
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
-    bot.answer_callback_query(call.id)  # پاسخ به callback تا دکمه timeout نشه
+    bot.answer_callback_query(call.id)  # پاسخ به callback
     file_id = call.data
+    file_info = drive_service.files().get(fileId=file_id, fields="name").execute()
+    file_name = file_info['name']
 
-    # دانلود و آماده‌سازی MP3 در حافظه
-    mp3_file = download_file_in_memory(file_id)
+    # 🔹 دانلود فایل MP3
+    mp3_file = download_mp3(file_id)
 
-    # ارسال فایل MP3 به کاربر
-    bot.send_audio(call.message.chat.id, mp3_file, title="آهنگ شما")
+    # 🔹 ارسال فایل MP3 به کاربر
+    bot.send_audio(call.message.chat.id, mp3_file, title=file_name)
 
 # 🔹 اجرای ربات
 bot.infinity_polling()
