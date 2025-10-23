@@ -1,8 +1,10 @@
 import os
+import io
 import json
 from telebot import TeleBot, types
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
+from googleapiclient.http import MediaIoBaseDownload
 from pydub import AudioSegment
 
 # 🔹 توکن ربات
@@ -17,7 +19,7 @@ credentials = service_account.Credentials.from_service_account_info(
 )
 drive_service = build('drive', 'v3', credentials=credentials)
 
-# 🔹 تابع گرفتن فایل‌های MP3 از گوگل درایو
+# 🔹 گرفتن فایل‌های MP3
 def get_mp3_files():
     results = drive_service.files().list(
         q="mimeType='audio/mpeg'",
@@ -25,20 +27,22 @@ def get_mp3_files():
     ).execute()
     return results.get('files', [])
 
-# 🔹 تبدیل فایل به MP3 (اگر لازم بود)
-def convert_to_mp3(input_path):
-    output_path = os.path.splitext(input_path)[0] + ".mp3"
-    audio = AudioSegment.from_file(input_path)
-    audio.export(output_path, format="mp3")
-    return output_path
-
-# 🔹 دانلود فایل از گوگل درایو و تبدیل به MP3
-def download_file(file_id, file_name):
+# 🔹 دانلود فایل در حافظه و تبدیل به MP3 در حافظه
+def download_file_in_memory(file_id):
     request = drive_service.files().get_media(fileId=file_id)
-    local_path = f"/tmp/{file_name}"
-    with open(local_path, "wb") as f:
-        f.write(request.execute())
-    return convert_to_mp3(local_path)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+    fh.seek(0)
+
+    # تبدیل با pydub به mp3
+    audio = AudioSegment.from_file(fh)
+    mp3_io = io.BytesIO()
+    audio.export(mp3_io, format="mp3")
+    mp3_io.seek(0)
+    return mp3_io
 
 # 🔹 دستور /start
 @bot.message_handler(commands=['start'])
@@ -58,17 +62,14 @@ def start_message(message):
 # 🔹 پاسخ به دکمه‌ها
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
-    bot.answer_callback_query(call.id)  # پاسخ به callback تا timeout نشه
+    bot.answer_callback_query(call.id)  # پاسخ به callback تا دکمه timeout نشه
     file_id = call.data
-    file_info = drive_service.files().get(fileId=file_id, fields="name").execute()
-    file_name = file_info['name']
 
-    # 🔹 دانلود و تبدیل فایل
-    mp3_path = download_file(file_id, file_name)
+    # دانلود و آماده‌سازی MP3 در حافظه
+    mp3_file = download_file_in_memory(file_id)
 
-    # 🔹 ارسال فایل MP3
-    with open(mp3_path, "rb") as audio:
-        bot.send_audio(call.message.chat.id, audio, title=file_name)
+    # ارسال فایل MP3 به کاربر
+    bot.send_audio(call.message.chat.id, mp3_file, title="آهنگ شما")
 
 # 🔹 اجرای ربات
 bot.infinity_polling()
