@@ -1,38 +1,42 @@
 import telebot
 from telebot import types
 import requests
-from io import BytesIO
+import os
 
-# توکن رباتت
+# 🔹 توکن رباتت
 TOKEN = "5564295105:AAExehUW8xw3SMc_vriJ6NWLLbn6qKSOSvI"
 bot = telebot.TeleBot(TOKEN)
 
-# لیست فایل‌ها و لینک گوگل درایو
-# کلید: نام فایل روی دکمه، مقدار: لینک دانلود مستقیم
+# 🔹 فایل‌های گوگل درایو (برای تست فقط دو تا فایل)
 FILES = {
-    "فایل 1": "https://drive.google.com/uc?export=download&id=1YXTFSarpMT7fbsYEkfrKWAKGA3fTgyIw",
-    "فایل 2": "https://drive.google.com/uc?export=download&id=1c2XfAg8moYF5bK9U8eCqg1TCeLZhhFq1",
-    "فایل 3": "https://drive.google.com/uc?export=download&id=1PU8cF1KuZ-mHyw9ukFbbPSK8FRGigkgd"
+    "فایل ۲": "https://drive.google.com/uc?export=download&id=1c2XfAg8moYF5bK9U8eCqg1TCeLZhhFq1",
+    "فایل ۳": "https://drive.google.com/uc?export=download&id=1PU8cF1KuZ-mHyw9ukFbbPSK8FRGigkgd"
 }
 
+# صفحه اصلی با دکمه‌ها
 @bot.message_handler(commands=['start'])
-def start_message(message):
+def start(message):
     markup = types.InlineKeyboardMarkup()
     for name in FILES.keys():
         markup.add(types.InlineKeyboardButton(name, callback_data=name))
     bot.send_message(message.chat.id, "کدوم فایل رو میخوای دانلود کنی؟", reply_markup=markup)
 
+# پاسخ به کلیک روی دکمه‌ها
 @bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    file_name = call.data
-    file_url = FILES[file_name]
+def callback(call):
+    file_url = FILES.get(call.data)
+    if file_url:
+        bot.answer_callback_query(call.id, f"در حال ارسال {call.data} ...")
+        # دانلود فایل موقت
+        r = requests.get(file_url, stream=True)
+        filename = f"{call.data}.mp3"
+        with open(filename, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        # ارسال فایل
+        with open(filename, "rb") as f:
+            bot.send_audio(call.message.chat.id, f)
+        os.remove(filename)
 
-    bot.send_message(call.message.chat.id, f"در حال ارسال {file_name} ...")
-    try:
-        r = requests.get(file_url)
-        r.raise_for_status()
-        bot.send_audio(call.message.chat.id, BytesIO(r.content), title=file_name)
-    except Exception as e:
-        bot.send_message(call.message.chat.id, f"خطا در ارسال فایل: {str(e)}")
-
-bot.polling(none_stop=True)
+bot.polling()
