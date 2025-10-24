@@ -1,8 +1,10 @@
 import telebot
 from telebot import types
-import json
+import os
+import io
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 
 # -------------------- تنظیمات --------------------
 TOKEN = '5564295105:AAExehUW8xw3SMc_vriJ6NWLLbn6qKSOSvI'
@@ -35,10 +37,18 @@ def main_menu():
         markup.add(types.KeyboardButton(name))
     return markup
 
-# -------------------- دریافت فایل از گوگل درایو --------------------
-def get_file_link(file_id):
-    # ساخت لینک مستقیم دانلود گوگل درایو
-    return f"https://drive.google.com/uc?export=download&id={file_id}"
+# -------------------- دانلود فایل از گوگل درایو --------------------
+def download_file(file_id, filename):
+    request = service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+    fh.seek(0)
+    with open(filename, 'wb') as f:
+        f.write(fh.read())
+    return filename
 
 # -------------------- هندلر استارت --------------------
 @bot.message_handler(commands=['start'])
@@ -53,11 +63,15 @@ def start(message):
 @bot.message_handler(func=lambda message: message.text in files)
 def send_file(message):
     file_id = files[message.text]
-    link = get_file_link(file_id)
-    bot.send_message(
-        message.chat.id,
-        f"اینجا لینک دانلود فایل {message.text}:\n{link}"
-    )
+    filename = f"{message.text}.mp3"  # یا هر پسوند مورد نیاز
+    bot.send_message(message.chat.id, "در حال آماده‌سازی فایل...")
+    try:
+        download_file(file_id, filename)
+        with open(filename, 'rb') as f:
+            bot.send_document(message.chat.id, f)
+        os.remove(filename)  # پاک کردن فایل بعد از ارسال
+    except Exception as e:
+        bot.send_message(message.chat.id, f"خطا در ارسال فایل: {str(e)}")
 
 # -------------------- اجرای ربات --------------------
 print("Bot is running...")
