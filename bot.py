@@ -1,42 +1,35 @@
 import telebot
 from telebot import types
 import requests
-import os
 
-# 🔹 توکن رباتت
-TOKEN = "5564295105:AAExehUW8xw3SMc_vriJ6NWLLbn6qKSOSvI"
+# 🔹 توکن جدید ربات
+TOKEN = "5564295105:AAFUmzvcsFWpYl7y0cnUc6tsHLkbVGNoQSU"
 bot = telebot.TeleBot(TOKEN)
 
-# 🔹 فایل‌های گوگل درایو (برای تست فقط دو تا فایل)
-FILES = {
-    "فایل ۲": "https://drive.google.com/uc?export=download&id=1c2XfAg8moYF5bK9U8eCqg1TCeLZhhFq1",
-    "فایل ۳": "https://drive.google.com/uc?export=download&id=1PU8cF1KuZ-mHyw9ukFbbPSK8FRGigkgd"
+# 🔹 لیست فایل‌ها با لینک مستقیم گوگل درایو (نمونه دو فایل)
+files = {
+    "فایل 1": "https://drive.google.com/uc?export=download&id=1c2XfAg8moYF5bK9U8eCqg1TCeLZhhFq1",
+    "فایل 2": "https://drive.google.com/uc?export=download&id=1PU8cF1KuZ-mHyw9ukFbbPSK8FRGigkgd"
 }
 
-# صفحه اصلی با دکمه‌ها
+# 🔹 فرمان /start
 @bot.message_handler(commands=['start'])
 def start(message):
-    markup = types.InlineKeyboardMarkup()
-    for name in FILES.keys():
-        markup.add(types.InlineKeyboardButton(name, callback_data=name))
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    for f in files.keys():
+        markup.add(types.KeyboardButton(f))
     bot.send_message(message.chat.id, "کدوم فایل رو میخوای دانلود کنی؟", reply_markup=markup)
 
-# پاسخ به کلیک روی دکمه‌ها
-@bot.callback_query_handler(func=lambda call: True)
-def callback(call):
-    file_url = FILES.get(call.data)
-    if file_url:
-        bot.answer_callback_query(call.id, f"در حال ارسال {call.data} ...")
-        # دانلود فایل موقت
-        r = requests.get(file_url, stream=True)
-        filename = f"{call.data}.mp3"
-        with open(filename, "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-        # ارسال فایل
-        with open(filename, "rb") as f:
-            bot.send_audio(call.message.chat.id, f)
-        os.remove(filename)
+# 🔹 دریافت پیام و ارسال فایل
+@bot.message_handler(func=lambda message: True)
+def send_file(message):
+    file_name = message.text
+    if file_name in files:
+        url = files[file_name]
+        bot.send_message(message.chat.id, f"در حال ارسال {file_name} ...")
+        bot.send_document(message.chat.id, document=url)
+    else:
+        bot.send_message(message.chat.id, "فایل پیدا نشد، لطفاً یکی از دکمه‌ها را انتخاب کن.")
 
-bot.polling()
+# 🔹 اجرا
+bot.polling(none_stop=True)
