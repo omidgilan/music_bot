@@ -1,24 +1,19 @@
-# bot.py
 import telebot
-from api import telegram  # import از فولدر api
-import os
 
-# 🔹 توکن ربات جدیدت رو اینجا قرار بده
+# توکن جدید رباتت
 TOKEN = "5548149661:AAFblu4NL86utR9SbzuE6RQ27HuD3Uiynas"
-
 bot = telebot.TeleBot(TOKEN)
 
-# پیام اولیه
+# فرمان /start
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_message(message.chat.id, "سلام! ربات آنلاین است ✅")
+    bot.reply_to(message, "سلام! ربات تستی آنلاین شد ✅")
 
-# پیام تستی ساده
+# پاسخ ساده به پیام متنی
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
-    bot.send_message(message.chat.id, "پیام دریافت شد: " + message.text)
+    bot.reply_to(message, "ربات آنلاین است و پیام شما را دریافت کرد!")
 
-# اجرا
-if __name__ == "__main__":
-    print("ربات در حال اجراست...")
-    bot.polling(none_stop=True)
+# شروع ربات
+print("ربات در حال اجراست...")
+bot.infinity_polling()
