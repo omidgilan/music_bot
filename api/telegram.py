@@ -1,18 +1,64 @@
 import telebot
+from telebot import types
 
-# توکن ربات
+# 🔹 توکن ربات
 TOKEN = "5548149661:AAFblu4NL86utR9SbzuE6RQ27HuD3Uiynas"
 bot = telebot.TeleBot(TOKEN)
 
-# دستور /start
+# 🔹 دیکشنری آهنگ‌ها (نام آهنگ و لینک فایل و تصویر)
+songs = {
+    "معین - آرزو داشتم": {
+        "file_url": "https://t.me/solfg0_filebot/20",
+        "thumbnail": "https://i.ibb.co/TMJLFKHZ/IMG-20251026-000741-631.jpg"
+    },
+    "معین - کعبه": {
+        "file_url": "https://t.me/solfg0_filebot/23",
+        "thumbnail": "https://i.ibb.co/KTLVWDk/IMG-20251026-032304-853.jpg"
+    },
+    "معین مست": {
+        "file_url": "https://t.me/solfg0_filebot/25",
+        "thumbnail": "https://i.ibb.co/Hp36wWKT/images.jpg"
+    }
+}
+
+# ======= آینلاین کوئری =======
+@bot.inline_handler(lambda query: True)
+def inline_query_handler(inline_query):
+    results = []
+    for name, info in songs.items():
+        markup = types.InlineKeyboardMarkup()
+        btn = types.InlineKeyboardButton(
+            text="باز کردن در ربات",
+            switch_inline_query_current_chat=name
+        )
+        markup.add(btn)
+
+        results.append(types.InlineQueryResultArticle(
+            id=name,
+            title=name,
+            description="کلیک کنید برای دریافت آهنگ",
+            input_message_content=types.InputTextMessageContent(
+                message_text=f"{name}\n{info['file_url']}"
+            ),
+            thumbnail_url=info['thumbnail'],
+            reply_markup=markup
+        ))
+    bot.answer_inline_query(inline_query.id, results, cache_time=0)
+
+# ======= چت ربات =======
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_message(message.chat.id, "سلام! ربات آنلاین است و آماده کار کردن.")
+    markup = types.InlineKeyboardMarkup()
+    btn = types.InlineKeyboardButton(
+        text="جستجو آهنگ‌ها",
+        switch_inline_query_current_chat=""
+    )
+    markup.add(btn)
+    bot.send_message(
+        message.chat.id, 
+        "سلام! برای پیدا کردن آهنگ‌ها روی دکمه زیر بزنید:", 
+        reply_markup=markup
+    )
 
-# پاسخ ساده به پیام‌ها
-@bot.message_handler(func=lambda message: True)
-def echo_all(message):
-    bot.send_message(message.chat.id, "پیام دریافت شد: " + message.text)
-
-# اجرای ربات
-bot.polling()
+# ======= شروع ربات =======
+bot.infinity_polling()
