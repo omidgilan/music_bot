@@ -1,37 +1,64 @@
 import telebot
 from telebot import types
-import requests
 
-# توکن ربات
+# 🔹 توکن ربات
 TOKEN = "5548149661:AAFblu4NL86utR9SbzuE6RQ27HuD3Uiynas"
 bot = telebot.TeleBot(TOKEN)
 
-# لیست آهنگ‌ها (اسم آهنگ: لینک دانلود مستقیم)
+# 🔹 دیکشنری آهنگ‌ها (نام آهنگ و لینک فایل و تصویر)
 songs = {
-    "ترانه ۱ - هنرمند ناشناس": "https://drive.google.com/uc?id=1c2XfAg8moYF5bK9U8eLZhhFq1&export=download",
-    "ترانه ۲ - هنرمند ناشناس": "https://drive.google.com/uc?id=1PU8cF1KuZ-mHyw9ukFbbPSK8FRGigkgd&export=download"
+    "معین - آرزو داشتم": {
+        "file_url": "https://t.me/solfg0_filebot/20",
+        "thumbnail": "https://i.ibb.co/TMJLFKHZ/IMG-20251026-000741-631.jpg"
+    },
+    "معین - کعبه": {
+        "file_url": "https://t.me/solfg0_filebot/23",
+        "thumbnail": "https://i.ibb.co/KTLVWDk/IMG-20251026-032304-853.jpg"
+    },
+    "معین مست": {
+        "file_url": "https://t.me/solfg0_filebot/25",
+        "thumbnail": "https://i.ibb.co/Hp36wWKT/images.jpg"
+    }
 }
 
+# ======= آینلاین کوئری =======
+@bot.inline_handler(lambda query: True)
+def inline_query_handler(inline_query):
+    results = []
+    for name, info in songs.items():
+        markup = types.InlineKeyboardMarkup()
+        btn = types.InlineKeyboardButton(
+            text="باز کردن در ربات",
+            switch_inline_query_current_chat=name
+        )
+        markup.add(btn)
+
+        results.append(types.InlineQueryResultArticle(
+            id=name,
+            title=name,
+            description="کلیک کنید برای دریافت آهنگ",
+            input_message_content=types.InputTextMessageContent(
+                message_text=f"{name}\n{info['file_url']}"
+            ),
+            thumbnail_url=info['thumbnail'],
+            reply_markup=markup
+        ))
+    bot.answer_inline_query(inline_query.id, results, cache_time=0)
+
+# ======= چت ربات =======
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     markup = types.InlineKeyboardMarkup()
-    for song_name in songs.keys():
-        button = types.InlineKeyboardButton(song_name, callback_data=song_name)
-        markup.add(button)
-    bot.send_message(message.chat.id, "کدوم آهنگ رو میخوای دانلود کنی؟", reply_markup=markup)
+    btn = types.InlineKeyboardButton(
+        text="جستجو آهنگ‌ها",
+        switch_inline_query_current_chat=""
+    )
+    markup.add(btn)
+    bot.send_message(
+        message.chat.id, 
+        "سلام! برای پیدا کردن آهنگ‌ها روی دکمه زیر بزنید:", 
+        reply_markup=markup
+    )
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    file_name = call.data
-    file_url = songs[file_name]
-    bot.answer_callback_query(call.id, text=f"در حال ارسال {file_name} ...")
-    
-    # دانلود فایل از گوگل درایو
-    response = requests.get(file_url)
-    
-    if response.status_code == 200:
-        bot.send_audio(call.message.chat.id, response.content, title=file_name)
-    else:
-        bot.send_message(call.message.chat.id, "خطا در دانلود فایل!")
-
-bot.polling(none_stop=True)
+# ======= شروع ربات =======
+bot.infinity_polling()
